@@ -175,6 +175,13 @@ input{width:100%;background:#0f1015;border:1px solid #374151;border-radius:10px;
 .sens.on.agon{background:#262832;color:#fff}
 .agpot{display:inline-flex;align-items:center;gap:5px;border-radius:14px;padding:8px 12px;margin:0 5px 6px 0;font-size:13px;font-weight:600;cursor:pointer;border:2px solid transparent;color:#fff}
 .agpot.on{border-color:#fff}
+.cxr{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #262832;cursor:pointer}
+.cxr:first-child{border-top:none}
+.cxi{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.cxd{background:#1d1f27;border-radius:12px;padding:10px 12px;margin:0 0 10px;font-size:13px}
+.cxl{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.cxa{margin-top:8px;padding:8px 10px;border-radius:10px;background:#13261a;border:1px solid #1f3d2a;font-size:12px;color:#bbf7d0}.cxa b{color:#86efac}
+.cxbar{height:6px;background:#2a2e3d;border-radius:3px;margin:6px 0 2px;overflow:hidden}.cxbar i{display:block;height:6px;border-radius:3px;background:#93c5fd}
 .acst{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:12px}
 .acj{border-radius:9px;padding:4px 0 5px;color:#fff;height:54px;display:flex;flex-direction:column;align-items:center}
 .acj .l{font-size:11px;opacity:.85}
@@ -201,7 +208,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 if (P.get('api') && P.get('k')) { localStorage.setItem('mq_api', P.get('api')); localStorage.setItem('mq_k', P.get('k')); }
 let API = localStorage.getItem('mq_api'), CLE = localStorage.getItem('mq_k');
 
-const VERSION = '13/11 13h10';
+const VERSION = '15/11 13h30';
 const ONGLETS = [
   ['accueil', 'ti-home', 'Accueil', '#7dd3fc'],
   ['agenda', 'ti-calendar', 'Agenda', '#f9a8d4'],
@@ -264,6 +271,7 @@ function revenirAujourdhui() {
   if (D) jourVu = D.auj;
   B.vu = null; B.edit = null; B.form = false;
   M.jour = null;
+  CX.ouv = null; CX.ed = false;
   S.jour = null; S.vue = 'jour'; S.chg = null; S.ed = null;
   A.mois = null; A.sel = null; A.note = false;
 }
@@ -583,9 +591,87 @@ function vueBudget() {
       <div class="g2" style="margin:0 0 8px"><button class="gris" onclick="B.edit=null;vueBudget()">Annuler</button><button class="vert" onclick="enregistrerMouvement(${i})">Enregistrer</button></div>
       <button class="rouge" onclick="supprimerMouvement(${i})"><i class="ti ti-trash"></i> Supprimer</button></div>` : ''}`; }).join('')).join('')}
   ${jours.length > 3 ? `<button class="pill" onclick="B.tout=!B.tout;vueBudget()">${B.tout ? 'Réduire' : 'Voir tout le mois'} <i class="ti ti-chevron-${B.tout ? 'up' : 'down'}"></i></button>` : ''}${!jours.length ? '<div class="lab" style="margin-top:8px">Aucun mouvement ce mois-ci</div>' : ''}</div>`;
+  h += carteComptes() + '<div style="height:20px"></div>';
   $('vue').innerHTML = h;
   if (B.edit && B.edit.t === 'mvt') dessinerSens('es');
   dessinerEtat();
+}
+
+/* ---------- Comptes externes (bas de l'onglet Budget) ---------- */
+let CX = { ouv: null, ed: false };
+const CXI = {
+  'LDDS': ['ti-building-bank', '#1e3a5f', '#93c5fd'], 'LIVRET A': ['ti-building-bank', '#1e3a5f', '#93c5fd'],
+  'PEA': ['ti-chart-line', '#3b2a0a', '#fbbf24'], 'BITCOIN': ['ti-currency-bitcoin', '#3d1f0a', '#fb923c']
+};
+function cleC(s) { return String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim(); }
+function nb(x, d) { return x == null ? '–' : Number(x).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+/** Intérêts de l'année : déjà acquis + quinzaines restantes jusqu'au 31 décembre au solde actuel. */
+function interetsAnnee(c, taux) {
+  const auj = new Date(D.auj + 'T12:00'); let n = 0;
+  for (let m = auj.getMonth(); m <= 11; m++) for (const j of [1, 16]) { const d = new Date(auj.getFullYear(), m, j, 12); if (d > auj) n++; }
+  return Math.round(((c.interets || 0) + (c.montant || 0) * taux / 24 * n) * 100) / 100;
+}
+function gainCompte(c) {
+  if (cleC(c.nom) === 'PEA' && c.pru && c.quantite && c.cours) { const g = (c.cours - c.pru) * c.quantite; return [g, g / (c.pru * c.quantite) * 100]; }
+  if (c.investi && c.montant != null) { const g = c.montant - c.investi; return [g, g / c.investi * 100]; }
+  return null;
+}
+function enregistrerCompte(nom) {
+  const p = { action: 'comptes', op: 'modifier', nom };
+  document.querySelectorAll('.cxin').forEach(x => { p[x.dataset.k] = x.value.trim(); });
+  if (Object.keys(p).some(k => !['action', 'op', 'nom'].includes(k) && p[k] !== '' && isNaN(Number(String(p[k]).replace(',', '.'))))) return toast('Valeur invalide');
+  CX.ed = false; attente++; dessinerEtat(); vueBudget();
+  file = file.then(() => api(p)).then(r => { if (r.comptes) { D.comptes = r.comptes; sauver(); } toast('Compte mis à jour'); vueBudget(); })
+    .catch(err => toast('Non enregistré : ' + err.message))
+    .finally(() => { attente = Math.max(0, attente - 1); dessinerEtat(); });
+}
+function carteComptes() {
+  const cx = D.comptes;
+  if (!cx || cx.erreur || !cx.comptes || !cx.comptes.length) return '';
+  const groupes = {};
+  cx.comptes.forEach(c => (groupes[c.groupe] = groupes[c.groupe] || []).push(c));
+  const total = cx.comptes.reduce((s, c) => s + (c.montant || 0), 0);
+  const intTot = cx.comptes.filter(c => /pargne/i.test(c.groupe)).reduce((s, c) => s + interetsAnnee(c, cx.taux), 0);
+  const an = D.auj.slice(0, 4);
+  let h = `<div style="display:flex;justify-content:space-between;align-items:baseline;margin:18px 4px 0"><span class="h2">Comptes externes</span><span class="lab">cours à ${esc(cx.heure)}</span></div>
+  <div class="c" style="background:#13261a;border:1px solid #1f3d2a"><div class="lab" style="color:#86efac">Total</div><div class="big" style="color:#4ade80">${eur(total)}</div></div>`;
+  Object.keys(groupes).forEach(g => {
+    const ep = /pargne/i.test(g), st = groupes[g].reduce((s, c) => s + (c.montant || 0), 0);
+    h += `<div style="display:flex;justify-content:space-between;align-items:baseline;margin:14px 4px 0"><span style="font-weight:600"><i class="ti ${ep ? 'ti-pig-money' : 'ti-trending-up'}" style="color:${ep ? '#93c5fd' : '#fbbf24'}"></i> ${esc(g)}</span><span style="font-weight:600">${eur(st)}</span></div>`;
+    if (ep && intTot > 0) h += `<div class="c" style="background:#13213a;border:1px solid #1e3a5f;margin-top:8px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:center"><span class="lab" style="color:#bfdbfe">Intérêts ${an} estimés · taux ${nb(cx.taux * 100, 1)} %</span><span style="color:#93c5fd;font-weight:600">≈ +${eur(intTot)}</span></div><div class="lab" style="margin-top:2px">Versés automatiquement le 2 janvier</div></div>`;
+    h += '<div class="c" style="margin-top:8px;padding:4px 12px">' + groupes[g].map(c => {
+      const k = cleC(c.nom), ic = CXI[k] || ['ti-wallet', '#262832', '#e6e6ea'], o = CX.ouv === c.nom, gn = gainCompte(c);
+      const sous = k === 'PEA' ? `${nb(c.quantite, 0)} parts × ${nb(c.cours, 2)} €` : k === 'BITCOIN' ? `${nb(c.quantite, 8)} BTC` : ep ? `${nb(cx.taux * 100, 1)} % · ≈ +${eur(interetsAnnee(c, cx.taux))} en janvier` : '';
+      let l = `<div class="cxr" onclick="CX.ouv=CX.ouv==='${esc(c.nom)}'?null:'${esc(c.nom)}';CX.ed=false;vueBudget()"><div class="cxi" style="background:${ic[1]};color:${ic[2]}"><i class="ti ${ic[0]}"></i></div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600">${esc(c.nom)}</div><div class="lab">${sous}</div></div>
+        <div style="text-align:right"><div style="font-weight:600">${eur(c.montant)}</div>${gn ? `<div style="font-size:12px;color:${gn[0] >= 0 ? '#4ade80' : '#fca5a5'}">${gn[0] >= 0 ? '↗ +' : '↘ −'}${eur(Math.abs(gn[0]))} (${gn[1] >= 0 ? '+' : '−'}${nb(Math.abs(gn[1]), 2)} %)</div>` : ''}</div></div>`;
+      if (o) {
+        const ld = (a, b) => `<div class="cxl"><span class="lab">${a}</span><span>${b}</span></div>`;
+        let d = '', champs = [], auto = '';
+        if (k === 'PEA') {
+          d = ld("Cours de l'ETF", nb(c.cours, 2) + ' €') + ld('Parts × cours', `${nb(c.quantite, 0)} × ${nb(c.cours, 2)} € = ${eur((c.quantite || 0) * (c.cours || 0))}`) + ld('Prix de revient', nb(c.pru, 4) + ' € / part') + ld('Espèces', eur(c.especes));
+          champs = [['quantite', 'Nombre de parts', c.quantite], ['especes', 'Espèces (€)', c.especes], ['pru', 'Prix de revient (€ / part)', c.pru]];
+          auto = "<b>Automatique le jour du récurrent ETF :</b> le versement s'ajoute aux espèces, puis l'app achète le maximum de parts (ordre de 100 € minimum, frais Bourso inclus).";
+        } else if (k === 'BITCOIN') {
+          d = ld('Cours du bitcoin', eur(c.cours)) + ld('Quantité', nb(c.quantite, 8) + ' BTC') + ld('Total investi', eur(c.investi));
+          champs = [['quantite', 'Quantité (BTC)', c.quantite], ['investi', 'Total investi (€)', c.investi]];
+          auto = `<b>Automatique chaque vendredi :</b> le Bitstack de la semaine est converti en bitcoin au cours du jour, moins ${nb(cx.fraisBtc * 100, 1)} % de frais.`;
+        } else {
+          d = ld('Taux actuel', nb(cx.taux * 100, 1) + ' %') + ld('Intérêts déjà acquis', eur(c.interets)) + ld(`Intérêts ${an} estimés`, '≈ ' + eur(interetsAnnee(c, cx.taux)));
+          if (c.plafond) d += ld('Plafond', c.montant >= c.plafond ? eur(c.plafond) + ' (atteint)' : `${eur(c.plafond)} · reste ${eur(c.plafond - c.montant)}`) + `<div class="cxbar"><i style="width:${Math.min(100, Math.round(c.montant / c.plafond * 100))}%"></i></div>`;
+          champs = [['montant', 'Montant (€)', c.montant], ['interets', 'Intérêts déjà acquis (€)', c.interets]];
+          auto = k === 'LIVRET A' ? "<b>Automatique :</b> quand tu coches la case Épargne dans le Budget, son montant s'ajoute ici. <b>Le 2 janvier :</b> les intérêts s'ajoutent aussi." : "<b>Le 2 janvier :</b> les intérêts s'ajoutent automatiquement.";
+        }
+        d += ld('Mis à jour', esc(c.maj));
+        l += `<div class="cxd">${d}<div class="cxa">${auto}</div>` + (CX.ed
+          ? `<div class="edit" style="margin-top:8px">${champs.map(f => `<div class="lab">${f[1]}</div><input class="cxin" data-k="${f[0]}" inputmode="decimal" value="${f[2] == null ? '' : String(f[2]).replace('.', ',')}">`).join('')}
+             <div class="g2" style="margin:0"><button class="gris" onclick="CX.ed=false;vueBudget()">Annuler</button><button class="vert" onclick="enregistrerCompte('${esc(c.nom)}')">Enregistrer</button></div></div>`
+          : `<button class="bt" style="margin-top:8px" onclick="CX.ed=true;vueBudget()"><i class="ti ti-pencil"></i> Modifier</button>`) + '</div>';
+      }
+      return l;
+    }).join('') + '</div>';
+  });
+  return h;
 }
 
 /* ---------- Menu ---------- */
