@@ -175,6 +175,14 @@ input{width:100%;background:#0f1015;border:1px solid #374151;border-radius:10px;
 .sens.on.agon{background:#262832;color:#fff}
 .agpot{display:inline-flex;align-items:center;gap:5px;border-radius:14px;padding:8px 12px;margin:0 5px 6px 0;font-size:13px;font-weight:600;cursor:pointer;border:2px solid transparent;color:#fff}
 .agpot.on{border-color:#fff}
+.exb{border-top:1px solid #262832;padding:10px 0;cursor:pointer}
+.exb.on{background:#1a2420;border:1.5px solid #8fb996;border-radius:14px;padding:10px;margin:6px 0;cursor:default}
+.exb.on+.exb{border-top:none}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tag{background:#262832;border-radius:8px;padding:3px 8px;font-size:12px}.tag b{font-weight:600;color:#8fb996;margin-right:3px}
+.plh{display:inline-block;background:#1d1f27;border:1px solid #2f323d;border-radius:8px;padding:2px 8px;font-size:12px;color:#b8bec6}
+.plh.der{border-color:#3d5a47;color:#cfe3d3}.plh.auj{background:#8fb996;border-color:#8fb996;color:#10261a}
+.si{text-align:center;font-size:16px;margin:0}.si::placeholder{color:#4b5563}
 .cxr{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #262832;cursor:pointer}
 .cxr:first-child{border-top:none}
 .cxi{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
@@ -208,7 +216,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 if (P.get('api') && P.get('k')) { localStorage.setItem('mq_api', P.get('api')); localStorage.setItem('mq_k', P.get('k')); }
 let API = localStorage.getItem('mq_api'), CLE = localStorage.getItem('mq_k');
 
-const VERSION = '15/11 13h30';
+const VERSION = '15/11 13h45';
 const ONGLETS = [
   ['accueil', 'ti-home', 'Accueil', '#7dd3fc'],
   ['agenda', 'ti-calendar', 'Agenda', '#f9a8d4'],
@@ -680,7 +688,7 @@ const JOURS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi',
 /** jsem : 0 = lundi … 6 = dimanche. Dîners en rotation du lundi au jeudi ; vendredi soir et week-end libres. */
 function repasDuJour(jsem) {
   const m = D.menu || {}, d = m.diners || [];
-  return { diner: jsem <= 3 && d.length ? d[jsem % d.length] : null, midiLibre: jsem >= 5, soirLibre: jsem >= 4 };
+  return { diner: jsem <= 3 && d.length ? d[jsem % d.length] : null, petitDejLibre: jsem >= 5, midiLibre: jsem >= 5, soirLibre: jsem >= 4 };
 }
 function jsemAuj() { return (new Date().getDay() + 6) % 7; }
 function carteMenu() {
@@ -714,7 +722,7 @@ function vueMenu() {
   let h = `<div class="titre"><h1 style="color:#fbbf24">Menu</h1><span class="lab">${ajd.charAt(0).toUpperCase() + ajd.slice(1)}</span></div>
   <div class="wkm">${lettres.map((l, i) => `<button class="${i === j ? 'sel' : ''}" onclick="M.jour=${i};vueMenu()">${l}<b>${i <= 3 && m.diners.length ? 'D' + (i % m.diners.length + 1) : '—'}</b>${i >= 4 ? 'libre' : i === auj ? 'auj.' : '&nbsp;'}</button>`).join('')}</div>
   <div class="c"><div class="h2" style="color:#fbbf24">${j === auj ? "Aujourd'hui" : nomJour}</div>
-  <div class="meal"><div class="ic"><i class="ti ti-coffee"></i></div><div style="flex:1"><div class="h2">Petit déjeuner</div>${pastilles(m.petitDej)}</div></div>
+  <div class="meal"><div class="ic"><i class="ti ti-coffee"></i></div><div style="flex:1">${r.petitDejLibre ? libre('Petit déjeuner libre') : `<div class="h2">Petit déjeuner</div>${pastilles(m.petitDej)}`}</div></div>
   ${r.midiLibre ? `<div class="meal"><div class="ic"><i class="ti ti-sun"></i></div><div style="flex:1">${libre('Midi libre')}</div></div>` : ''}
   <div class="meal"><div class="ic"><i class="ti ti-moon"></i></div><div style="flex:1">${r.diner ? `<div class="h2">Dîner</div>${pastilles(r.diner.items)}` : libre('Soir libre')}</div></div></div>
   <div class="etat" id="etat"></div>
@@ -730,7 +738,7 @@ function vueMenu() {
 
 /* ---------- Sport ---------- */
 const VERT = '#8fb996';
-let S = { jour: null, vue: 'jour', m: null, chg: null, ed: null };
+let S = { jour: null, vue: 'jour', m: null, chg: null, ed: null, curs: {} };
 let SER = {};
 try { SER = JSON.parse(localStorage.getItem('mq_series')) || {}; } catch (e) {}
 (function nettoyer() {
@@ -767,6 +775,10 @@ function serie(jour, m, i, k) {
   a[k] = !a[k]; sauverSeries();
   if (navigator.vibrate) navigator.vibrate(10);
   if (a[k] && e.sec) lancerMinu(e.sec, e.nom);
+  if (p.type === 'muscu' && a[k]) {
+    let tout = true; for (let q = 0; q < e.n; q++) if (!a[q]) tout = false;
+    if (tout) { enregistrerSaisie(jour, m, i, e); if (S.curs[jour + '|' + m] === i) S.curs[jour + '|' + m] = null; }
+  }
   const cibles = p.type === 'course' ? p.exos.map((x, n) => [x, n]).filter(([x]) => !/^x$/i.test(x.rir)) : p.exos.map((x, n) => [x, n]);
   const fini = cibles.every(([x, n]) => { const s = SER[jour + '|' + m + '|' + n] || []; for (let q = 0; q < x.n; q++) if (!s[q]) return false; return true; });
   if (fini) { marquerSport(jour, m, true); toast('Séance terminée, bravo'); }
@@ -774,7 +786,7 @@ function serie(jour, m, i, k) {
 }
 function ronds(jour, m, i, n) {
   const s = SER[jour + '|' + m + '|' + i] || []; let h = '';
-  for (let k = 0; k < n; k++) h += `<button class="sr ${s[k] ? 'ok' : ''}" aria-label="Série ${k + 1}" onclick="serie('${jour}','${m}',${i},${k})">${s[k] ? '<i class="ti ti-check"></i>' : k + 1}</button>`;
+  for (let k = 0; k < n; k++) h += `<button class="sr ${s[k] ? 'ok' : ''}" aria-label="Série ${k + 1}" onclick="event.stopPropagation();serie('${jour}','${m}',${i},${k})">${s[k] ? '<i class="ti ti-check"></i>' : k + 1}</button>`;
   return `<div class="srs">${h}</div>`;
 }
 function compte(jour, m, p) {
@@ -837,6 +849,52 @@ function enregistrerCharge(m, i) {
     .finally(() => { attente = Math.max(0, attente - 1); dessinerEtat(); });
 }
 
+/* Exercice de musculation : infos toujours visibles ; l'exercice choisi se déplie pour la saisie du jour */
+let SAI = {};
+try { SAI = JSON.parse(localStorage.getItem('mq_saisie')) || {}; } catch (e) {}
+function sauverSaisie() { try { localStorage.setItem('mq_saisie', JSON.stringify(SAI)); } catch (e) {} }
+function saisie(id) { return SAI[id] || (SAI[id] = { r: [], kg: '' }); }
+function choisirExo(jour, m, i) { S.curs[jour + '|' + m] = i; vueSport(); }
+function majRep(id, k, v) { saisie(id).r[k] = v.replace(/[^0-9]/g, ''); sauverSaisie(); }
+function majKg(id, v) { saisie(id).kg = v.replace('.', ',').replace(/[^0-9,]/g, ''); sauverSaisie(); }
+function pasSaisie(id, d) {
+  const sa = saisie(id), v = parseFloat(String(sa.kg).replace(',', '.')) || 0;
+  sa.kg = String(Math.max(0, Math.round((v + d) * 10) / 10)).replace('.', ','); sauverSaisie();
+  const el = document.getElementById('kg-' + id.replace(/[^a-z0-9]/gi, '_')); if (el) el.value = sa.kg;
+}
+function exoMuscu(jour, m, e, i, ouvert) {
+  const id = jour + '|' + m + '|' + i, sa = saisie(id);
+  const dern = e.hist.slice(-2).map((c, k, a) => `<span class="plh ${k === a.length - 1 ? 'der' : ''}">${esc(c)}</span>`).join('<i class="ti ti-arrow-right" style="font-size:11px;color:#6b7280"></i>');
+  const tete = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:600;min-width:0">${e.ss ? '<span class="tgv">SS </span>' : ''}${esc(e.nom)}</div>${ouvert ? '<span class="tgv">En cours</span>' : ronds(jour, m, i, e.n)}</div>
+    <div class="tags"><span class="tag"><b>Séries</b>${esc(e.series)}</span><span class="tag"><b>Rép.</b>${esc(e.rep)}</span><span class="tag"><b>RIR</b>${esc(e.rir)}</span><span class="tag"><b>Repos</b>${esc(e.repos || 'enchaîné')}</span></div>
+    <div style="display:flex;align-items:center;gap:5px;margin-top:6px;flex-wrap:wrap"><span class="lab">Dernières :</span>${dern || '<span class="plh">à tester</span>'}${e.auj ? `<span class="plh auj">auj. ${esc(e.auj)}</span>` : ''}</div>`;
+  if (!ouvert) return `<div class="exb" onclick="choisirExo('${jour}','${m}',${i})">${tete}</div>`;
+  let cases = '';
+  for (let k = 0; k < e.n; k++) cases += `<input class="si" inputmode="numeric" placeholder="S${k + 1}" value="${esc(sa.r[k] || '')}" oninput="majRep('${id}',${k},this.value)">`;
+  return `<div class="exb on">${tete}
+    <div class="lab" style="margin-top:10px">Aujourd'hui · répétitions par série</div>
+    <div style="display:grid;grid-template-columns:repeat(${Math.min(e.n, 4)},minmax(0,1fr));gap:6px;margin-top:4px">${cases}</div>
+    <div class="lab" style="margin-top:8px">Charge</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><button class="bt pas" onclick="pasSaisie('${id}',-2.5)">−</button><input class="si" id="kg-${id.replace(/[^a-z0-9]/gi, '_')}" inputmode="decimal" placeholder="kg" value="${esc(sa.kg)}" oninput="majKg('${id}',this.value)"><span class="lab">kg</span><button class="bt pas" onclick="pasSaisie('${id}',2.5)">+</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px">${ronds(jour, m, i, e.n)}<span class="lab" style="text-align:right">Enregistré à<br>la dernière série</span></div></div>`;
+}
+/** Dernière série cochée : on écrit les répétitions et la charge saisies (si elles sont complètes). */
+function enregistrerSaisie(jour, m, i, e) {
+  if (jour !== D.auj) return;
+  const id = jour + '|' + m + '|' + i, sa = saisie(id);
+  const reps = []; for (let k = 0; k < e.n; k++) reps.push(String(sa.r[k] || '').trim());
+  const kg = String(sa.kg || '').trim();
+  if (!reps.some(Boolean) && !kg) return;
+  if (reps.some(x => !/^\d+$/.test(x)) || !/^\d+(,\d+)?$/.test(kg)) { toast('Non enregistré : complète les répétitions et la charge'); return; }
+  const val = reps.join('/') + ' ' + kg + 'kg';
+  e.auj = val; sauver();
+  attente++; dessinerEtat();
+  file = file.then(() => api({ action: 'sport', op: 'charge', r: e.r, nom: e.nom, val }))
+    .then(() => toast(e.nom + ' enregistré : ' + val))
+    .catch(err => { toast('Non enregistré : ' + err.message); attente = 0; actualiser(false); })
+    .finally(() => { attente = Math.max(0, attente - 1); dessinerEtat(); });
+}
+
 /* Changer une séance */
 function ouvrirChg(m) { const v = D.sport.jours[S.jour][m]; S.chg = { m, choix: v || 'Repos', libre: '', portee: 'jour' }; vueSport(); }
 function choisirChg(i) { S.chg.choix = i < 0 ? 'Repos' : D.sport.liste[i]; S.chg.libre = ''; vueSport(); }
@@ -875,9 +933,10 @@ function carteSeance(m, nom) {
   const jour = D.sport.jours[S.jour].jour, p = progDe(nom), futur = jour > D.auj;
   if (!nom) return `<div class="c" style="opacity:.7">${teteSeance('', m)}</div>`;
   if (p && p.type === 'muscu') {
-    const [f, t] = compte(jour, m, p);
-    return `<div class="c">${teteSeance(p.nom, m, `<span class="lab">${f}/${t}</span>`)}<div style="margin-top:6px">` +
-      p.exos.map((e, i) => `<div class="ex"><div style="min-width:0">${e.ss ? '<span class="tgv">SS </span>' : ''}${esc(e.nom)}<div class="lab">${esc(e.series)} × ${esc(e.rep)} · ${e.auj ? '<span style="color:#8fb996">auj. ' + esc(e.auj) + '</span>' : esc(e.hist.length ? e.hist[e.hist.length - 1] : 'à tester')}</div></div>${ronds(jour, m, i, e.n)}</div>`).join('') +
+    const [f, t] = compte(jour, m, p), cle = jour + '|' + m, cur = S.curs[cle];
+    return `<div class="c">${teteSeance(p.nom, m, `<span class="lab">${f}/${t}</span>`)}
+      <div class="lab" style="margin-top:4px">Touche un exercice pour le commencer</div><div style="margin-top:4px">` +
+      p.exos.map((e, i) => exoMuscu(jour, m, e, i, cur === i)).join('') +
       `</div><button class="vv" onclick="S.vue='complete';S.m='${m}';vueSport();window.scrollTo(0,0)"><i class="ti ti-list-details"></i> Séance complète</button></div>`;
   }
   if (p && p.type === 'course') {
