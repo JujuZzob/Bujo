@@ -179,7 +179,7 @@ input{width:100%;background:#0f1015;border:1px solid #374151;border-radius:10px;
 .exb.on{background:#1a2420;border:1.5px solid #8fb996;border-radius:14px;padding:10px;margin:6px 0;cursor:default}
 .exb.on+.exb{border-top:none}
 .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.tag{background:#262832;border-radius:8px;padding:3px 8px;font-size:12px}.tag b{font-weight:600;color:#8fb996;margin-right:3px}
+.tag{background:#262832;border-radius:8px;padding:3px 8px;font-size:13px;font-weight:600;color:#fff}.tag b{font-weight:400;font-size:11px;color:#6b7280;margin-right:4px}
 .plh{display:inline-block;background:#1d1f27;border:1px solid #2f323d;border-radius:8px;padding:2px 8px;font-size:12px;color:#b8bec6}
 .plh.der{border-color:#3d5a47;color:#cfe3d3}.plh.auj{background:#8fb996;border-color:#8fb996;color:#10261a}
 .si{text-align:center;font-size:16px;margin:0}.si::placeholder{color:#4b5563}
@@ -216,7 +216,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 if (P.get('api') && P.get('k')) { localStorage.setItem('mq_api', P.get('api')); localStorage.setItem('mq_k', P.get('k')); }
 let API = localStorage.getItem('mq_api'), CLE = localStorage.getItem('mq_k');
 
-const VERSION = '15/11 13h45';
+const VERSION = '15/11 13h55';
 const ONGLETS = [
   ['accueil', 'ti-home', 'Accueil', '#7dd3fc'],
   ['agenda', 'ti-calendar', 'Agenda', '#f9a8d4'],
@@ -635,7 +635,7 @@ function enregistrerCompte(nom) {
 }
 function carteComptes() {
   const cx = D.comptes;
-  if (!cx || cx.erreur || !cx.comptes || !cx.comptes.length) return '';
+  if (!cx || cx.erreur || !cx.comptes || !cx.comptes.length) return `<div style="margin:18px 4px 0" class="h2">Comptes externes</div><div class="c vide">${cx && cx.erreur ? 'Erreur : ' + esc(cx.erreur) : cx === undefined ? "Le script Google n'est pas encore à jour : colle le dernier Code-complet.txt et publie une nouvelle version." : "Onglet « Comptes » introuvable dans Tracking Dépense."}</div>`;
   const groupes = {};
   cx.comptes.forEach(c => (groupes[c.groupe] = groupes[c.groupe] || []).push(c));
   const total = cx.comptes.reduce((s, c) => s + (c.montant || 0), 0);
