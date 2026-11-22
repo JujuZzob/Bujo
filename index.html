@@ -183,6 +183,19 @@ input{width:100%;background:#0f1015;border:1px solid #374151;border-radius:10px;
 .plh{display:inline-block;background:#1d1f27;border:1px solid #2f323d;border-radius:8px;padding:2px 8px;font-size:12px;color:#b8bec6}
 .plh.der{border-color:#3d5a47;color:#cfe3d3}.plh.auj{background:#8fb996;border-color:#8fb996;color:#10261a}
 .si{text-align:center;font-size:16px;margin:0}.si::placeholder{color:#4b5563}
+.rwk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.rwd{background:none;border:1.5px solid transparent;border-radius:12px;padding:6px 0 5px;color:#e6e6ea;font-family:inherit;cursor:pointer}
+.rwd.sel{border-color:#2dd4bf;background:#132a27}.rwd:disabled{opacity:.4;cursor:default}
+.rwn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.rcer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;text-align:center;padding:4px 0}
+.rsec{font-size:12px;color:#9ca3af;margin:14px 4px 6px;display:flex;align-items:center;gap:6px}
+.rlst{padding:4px 12px}
+.rli{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid #262832;cursor:pointer;user-select:none;-webkit-user-select:none}
+.rli:first-child{border-top:none}
+.rbar{width:4px;align-self:stretch;border-radius:2px;flex-shrink:0}
+.rtx{flex:1;min-width:0;font-size:14px}
+.rrd{width:26px;height:26px;border-radius:50%;border:2px solid #4b5060;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:#0f1015}
+.rli.ok .rtx{color:#6b7280}.rli.att{opacity:.45;cursor:default}
 .cxr{display:flex;align-items:center;gap:12px;padding:9px 0;cursor:pointer}
 .cxg{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;padding-top:12px;border-top:1px solid #262832}
 .cxint{background:#13213a;border-radius:10px;padding:7px 10px;margin-top:4px;font-size:12px;color:#bfdbfe}
@@ -219,7 +232,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 if (P.get('api') && P.get('k')) { localStorage.setItem('mq_api', P.get('api')); localStorage.setItem('mq_k', P.get('k')); }
 let API = localStorage.getItem('mq_api'), CLE = localStorage.getItem('mq_k');
 
-const VERSION = '16/11 11h40';
+const VERSION = '22/11 23h30';
 const ONGLETS = [
   ['accueil', 'ti-home', 'Accueil', '#7dd3fc'],
   ['agenda', 'ti-calendar', 'Agenda', '#f9a8d4'],
@@ -402,29 +415,43 @@ function cocher(gi, hi, xi) {
     .finally(() => { attente = Math.max(0, attente - 1); if (!attente) actualiserBientot(); });
 }
 function choisirJour(j) { jourVu = j; vueRoutine(); }
+const COUL_GRP = { 'SANTE': '#2dd4bf', 'SOINS': '#f9a8d4', 'ESPRIT': '#a78bfa' };
+function coulGrp(n) { return COUL_GRP[String(n || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim()] || '#9ca3af'; }
+function cercle(p, R, w, c, taille, txt, fs) {
+  const C = 2 * Math.PI * R, t = taille / 2;
+  return `<svg viewBox="0 0 ${taille} ${taille}" width="${taille}" height="${taille}" style="display:block;margin:0 auto"><circle cx="${t}" cy="${t}" r="${R}" fill="none" stroke="#262832" stroke-width="${w}"/>${p > 0 ? `<circle cx="${t}" cy="${t}" r="${R}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(C * Math.min(1, p)).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${t} ${t})"/>` : ''}${txt ? `<text x="${t}" y="${t}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="600" fill="#e6e6ea">${txt}</text>` : ''}</svg>`;
+}
 function vueRoutine() {
-  const J = jourActuel(), e = J.etat, pc = e.total ? Math.round(e.faits / e.total * 100) : 0;
+  const J = jourActuel(), e = J.etat;
   const lettres = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  const pleins = D.jours.filter(j => !j.futur && !j.vide && j.etat.total);
-  const moyenne = pleins.length ? Math.round(pleins.reduce((a, j) => a + j.etat.faits / j.etat.total, 0) / pleins.length * 100) : 0;
-  let h = `<div class="titre"><div><h1 style="color:#2dd4bf">Routine</h1><div class="lab">${J.jour === D.auj ? "Aujourd'hui · " : ''}${esc(J.libelle)}</div></div>${anneau(e.faits, e.total, 60, pc + '%')}</div>
-  <div class="c"><div class="wk">${D.jours.map((j, i) => `<button ${j.futur ? 'disabled' : ''} class="${j.jour === J.jour ? 'sel' : ''}" onclick="choisirJour('${j.jour}')">${anneau(j.etat ? j.etat.faits : 0, j.futur || j.vide ? 0 : j.etat.total, 36)}<div>${lettres[i]}</div></button>`).join('')}</div>
-  <div class="lab" style="text-align:center;margin-top:6px">${e.faits} / ${e.total} · moyenne de la semaine ${moyenne} %${D.meilleure ? ' · série ' + esc(D.meilleure.nom) + ' ' + D.meilleure.n + ' j' : ''}</div></div>
-  <div class="etat" id="etat"></div>`;
-  h += e.groupes.map((g, gi) => {
-    const fin = g.total && g.faits === g.total;
-    return `<div class="c ${fin ? 'fin' : ''}"><div class="grp"><span>${esc(g.nom)}${fin ? ' <i class="ti ti-circle-check"></i>' : ''}</span><span class="lab">${g.faits} / ${g.total}</span></div>
-    <div class="bar"><div style="width:${g.total ? g.faits / g.total * 100 : 0}%"></div></div><div class="tl">` +
-    g.habitudes.map((x, hi) => {
-      const req = x.gestes.filter(y => y.requis), k = req.filter(y => y.fait).length;
-      const large = (hi === g.habitudes.length - 1 && g.habitudes.length % 2 === 1) || x.gestes.some(y => y.texte.length > 40);
-      const cls = x.repos ? 'rest' : x.complet ? 'done' : k ? 'half' : '';
-      return `<div class="t ${cls} ${large ? 'large' : ''}"><div class="tn"><span>${esc(x.nom)}</span>${req.length > 1 && !x.complet ? `<span class="k">${k}/${req.length}</span>` : x.complet ? '<i class="ti ti-circle-check" style="color:#2dd4bf;font-size:17px"></i>' : ''}</div>` +
-        x.gestes.map((y, xi) => !y.requis && !y.fait
-          ? `<div class="g attente"><span class="d"></span><span>${esc(y.texte)}<span class="wait">${esc(y.attente)}</span></span></div>`
-          : `<div class="g ${y.fait ? 'ok' : ''}" role="checkbox" aria-checked="${y.fait}" onclick="cocher(${gi},${hi},${xi})"><span class="d">${y.fait ? '<i class="ti ti-check"></i>' : ''}</span><span>${y.moment ? `<span class="mo">${esc(y.moment)}</span>` : ''}${esc(y.texte)}</span></div>`).join('') + '</div>';
-    }).join('') + '</div></div>';
+  // Semaine : un cercle par jour avec son taux
+  const semaine = D.jours.map((j, i) => {
+    const t = j.futur || j.vide || !j.etat || !j.etat.total ? null : Math.round(j.etat.faits / j.etat.total * 100);
+    const c = t === null ? '#4b5563' : t >= 80 ? '#2dd4bf' : t >= 60 ? '#fbbf24' : '#f87171';
+    return `<button class="rwd ${j.jour === J.jour ? 'sel' : ''}" ${j.futur ? 'disabled' : ''} onclick="choisirJour('${j.jour}')"><span class="lab">${lettres[i]}</span>
+      <span style="position:relative;display:block;width:38px;height:38px;margin:2px auto 0">${cercle((t || 0) / 100, 15, 4, c, 38)}<span class="rwn">${Number(j.jour.slice(8))}</span></span>
+      <span style="font-size:11px;color:${c}">${t === null ? '–' : t + '%'}</span></button>`;
   }).join('');
+  // Trois cercles par groupe
+  const cercles = e.groupes.map(g => `<div>${cercle(g.total ? g.faits / g.total : 0, 30, 8, coulGrp(g.nom), 76, (g.total ? Math.round(g.faits / g.total * 100) : 0) + '%', 16)}<div style="font-weight:600;color:${coulGrp(g.nom)};font-size:13px">${esc(g.nom)}</div><div class="lab">${g.faits} / ${g.total}</div></div>`).join('');
+  // Lignes à plat, dans l'ordre du tableau
+  const lignes = [];
+  e.groupes.forEach((g, gi) => g.habitudes.forEach((x, hi) => lignes.push({ g, gi, hi, x, y: x.gestes[0] })));
+  lignes.sort((a, b) => (a.x.ordre || 0) - (b.x.ordre || 0));
+  const ligne = l => {
+    const c = coulGrp(l.g.nom), y = l.y;
+    if (!y.requis && !y.fait) return `<div class="rli att"><span class="rbar" style="background:${c}"></span><span class="rtx">${esc(y.texte)}<span class="lab"> · ${esc(y.attente)}</span></span><span class="rrd"></span></div>`;
+    return `<div class="rli ${y.fait ? 'ok' : ''}" role="checkbox" aria-checked="${y.fait}" onclick="cocher(${l.gi},${l.hi},0)"><span class="rbar" style="background:${c}"></span>
+      <span class="rtx">${esc(y.texte)}${y.detail ? `<span class="lab"> · ${esc(y.detail)}</span>` : ''}</span>
+      <span class="rrd" style="${y.fait ? `background:${c};border-color:${c}` : ''}">${y.fait ? '<i class="ti ti-check"></i>' : ''}</span></div>`;
+  };
+  const journee = lignes.filter(l => /^journ/i.test(l.y.moment || '')), ordre = lignes.filter(l => !/^journ/i.test(l.y.moment || ''));
+  let h = `<div class="titre"><div><h1 style="color:#2dd4bf">Routine</h1><div class="lab">${J.jour === D.auj ? "Aujourd'hui · " : ''}${esc(J.libelle)}</div></div>${D.meilleure ? `<span class="lab">Série ${esc(D.meilleure.nom)} · ${D.meilleure.n} j</span>` : ''}</div>
+  <div class="c" style="padding:8px 6px"><div class="rwk">${semaine}</div></div>
+  <div class="etat" id="etat"></div>
+  <div class="c"><div class="rcer">${cercles}</div></div>`;
+  if (journee.length) h += `<div class="rsec"><i class="ti ti-infinity"></i> Tout au long de la journée</div><div class="c rlst">${journee.map(ligne).join('')}</div>`;
+  h += `<div class="rsec"><i class="ti ti-list-check"></i> Dans l'ordre de la journée</div><div class="c rlst">${ordre.map(ligne).join('')}</div>`;
   $('vue').innerHTML = h;
   dessinerEtat();
 }
