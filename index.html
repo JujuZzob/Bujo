@@ -232,7 +232,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 if (P.get('api') && P.get('k')) { localStorage.setItem('mq_api', P.get('api')); localStorage.setItem('mq_k', P.get('k')); }
 let API = localStorage.getItem('mq_api'), CLE = localStorage.getItem('mq_k');
 
-const VERSION = '23/11 0h15';
+const VERSION = '25/11 11h00';
 const ONGLETS = [
   ['accueil', 'ti-home', 'Accueil', '#7dd3fc'],
   ['agenda', 'ti-calendar', 'Agenda', '#f9a8d4'],
@@ -460,7 +460,9 @@ function vueRoutine() {
 let B = { passes: false, tout: false, form: false, sens: 'sortie', edit: null, vu: null, charge: false, bitAvant: null };
 function eur(v) { return v == null || v === '' ? '—' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
 function signe(v, sortie) { if (v == null) return '—'; return (sortie ? (v < 0 ? '+' : '−') : (v < 0 ? '−' : '+')) + eur(Math.abs(v)); }
-function arrondi(v) { return v > 0 ? Math.round((Math.ceil(v) - v) * 100) / 100 : 0; }
+/** Arrondi Bitstack : seuls les paiements carte comptent (pas les virements « Vir … » ni l'épargne). */
+function arrondi(v, lib) { if (lib && /^vir\b/i.test(String(lib).trim())) return 0; return v > 0 ? Math.round((Math.ceil(v) - v) * 100) / 100 : 0; }
+function arrondiRec(x) { return x.bit != null ? x.bit : arrondi(x.montant, x.lib); }
 function bitPlus(b, d) { if (b.bitstack != null) b.bitstack = Math.round((b.bitstack + d) * 100) / 100; }
 function nombre(s) { const n = parseFloat(String(s || '').replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100) / 100; }
 function bv() { return B.vu || D.budget; }
@@ -470,7 +472,7 @@ function ajusterEpargne(b, delta, jourOp) {
   const e = b.epargne; if (!e || e.fait || e.montant == null || !delta) return;
   if (jourOp && e.jour && jourOp > e.jour) return;          // après la paye : sans effet sur l'épargne
   const avant = e.montant; e.montant = Math.max(0, rond(e.montant + 0.25 * delta));
-  if (b.prevision != null) b.prevision = rond(b.prevision - (e.montant - avant) - (arrondi(e.montant) - arrondi(avant)));
+  if (b.prevision != null) b.prevision = rond(b.prevision - (e.montant - avant));   // épargne = virement : pas d'arrondi
 }
 function ajusterSolde(b, d) { if (b.solde != null) b.solde = rond(b.solde + d); }
 
@@ -503,7 +505,7 @@ function cocherBudget(type, i) {
   const b = bv();
   if (type === 'rec') {
     const x = b.recurrents[i]; x.fait = !x.fait;
-    const s = x.fait ? 1 : -1; ajusterSolde(b, -s * x.montant); bitPlus(b, s * arrondi(x.montant));
+    const s = x.fait ? 1 : -1; ajusterSolde(b, -s * x.montant); bitPlus(b, s * arrondiRec(x));
     ajusterEpargne(b, -s * x.montant, x.jour);
     envoyerBudget({ op: 'cocher', r: x.r, lib: x.lib, v: x.fait ? '1' : '0' });
   } else if (type === 'rev') {
@@ -513,7 +515,7 @@ function cocherBudget(type, i) {
   } else if (type === 'ep') {
     const x = b.epargne; if (x.montant == null) return toast("L'épargne sera calculée une fois le salaire saisi");
     x.fait = !x.fait;
-    const s = x.fait ? 1 : -1; ajusterSolde(b, -s * x.montant); bitPlus(b, s * arrondi(x.montant));
+    const s = x.fait ? 1 : -1; ajusterSolde(b, -s * x.montant);
     envoyerBudget({ op: 'cocher', r: x.r, lib: x.lib, v: x.fait ? '1' : '0' });
   }
   if (navigator.vibrate) navigator.vibrate(10);
@@ -539,8 +541,8 @@ function enregistrerMouvement(i) {
   const ancienLib = x.lib, ancienM = x.montant;
   const d = signeM - ancienM;
   x.lib = l; x.montant = signeM; B.edit = null;
-  ajusterSolde(b, -d); bitPlus(b, arrondi(signeM) - arrondi(ancienM));
-  if (b.prevision != null) b.prevision = rond(b.prevision - d - (arrondi(signeM) - arrondi(ancienM)));
+  ajusterSolde(b, -d); bitPlus(b, arrondi(signeM, l) - arrondi(ancienM, ancienLib));
+  if (b.prevision != null) b.prevision = rond(b.prevision - d - (arrondi(signeM, l) - arrondi(ancienM, ancienLib)));
   if (signeM > 0 || ancienM > 0) { const dt = Math.max(signeM, 0) - Math.max(ancienM, 0); b.totMois = rond(b.totMois + dt); if (x.jour === D.auj) b.totJour = rond(b.totJour + dt); }
   ajusterEpargne(b, -d, x.jour);
   vueBudget();
@@ -550,8 +552,8 @@ function supprimerMouvement(i) {
   const b = bv(), x = b.mouvements[i];
   if (!confirmer('Supprimer « ' + x.lib + ' » ?')) return;
   b.mouvements.splice(i, 1); B.edit = null;
-  ajusterSolde(b, x.montant); bitPlus(b, -arrondi(x.montant));
-  if (b.prevision != null) b.prevision = rond(b.prevision + x.montant + arrondi(x.montant));
+  ajusterSolde(b, x.montant); bitPlus(b, -arrondi(x.montant, x.lib));
+  if (b.prevision != null) b.prevision = rond(b.prevision + x.montant + arrondi(x.montant, x.lib));
   if (x.montant > 0) { b.totMois = rond(b.totMois - x.montant); if (x.jour === D.auj) b.totJour = rond(b.totJour - x.montant); }
   ajusterEpargne(b, x.montant, x.jour);
   vueBudget();
@@ -567,7 +569,7 @@ function ajouterMouvement() {
   const m = nombre($('dm').value), l = $('dl').value.trim(), ent = $('ds').dataset.sens === 'entree';
   if (!m || m <= 0) return toast('Entre un montant');
   if (!l) return toast('Entre un libellé');
-  const b = bv(), v = ent ? -m : m, a = arrondi(v);
+  const b = bv(), v = ent ? -m : m, a = arrondi(v, l);
   b.mouvements.unshift({ r: 0, jour: D.auj, date: '', lib: l, montant: v });
   ajusterSolde(b, -v); bitPlus(b, a); if (b.prevision != null) b.prevision = rond(b.prevision - v - a);
   if (v > 0) { b.totJour = rond(b.totJour + v); b.totMois = rond(b.totMois + v); }
